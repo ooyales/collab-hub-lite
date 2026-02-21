@@ -176,6 +176,7 @@ def create_app(config_name=None):
         config_name = os.environ.get('FLASK_CONFIG', 'development')
 
     app = Flask(__name__)
+    app.url_map.strict_slashes = False
 
     from config import config as config_dict
     app.config.from_object(config_dict[config_name])
