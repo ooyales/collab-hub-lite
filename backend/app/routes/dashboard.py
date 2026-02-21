@@ -9,6 +9,54 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/summary', methods=['GET'])
 def summary():
+    """Get executive summary KPIs across all entities.
+    ---
+    tags:
+      - Dashboard
+    security: []
+    responses:
+      200:
+        description: Summary KPIs
+        schema:
+          type: object
+          properties:
+            total_assets:
+              type: integer
+            active_assets:
+              type: integer
+            pending_renewal:
+              type: integer
+            expired_assets:
+              type: integer
+            total_budget:
+              type: number
+            total_spent:
+              type: number
+            remaining_budget:
+              type: number
+            budget_utilization_pct:
+              type: number
+            total_tasks:
+              type: integer
+            open_tasks:
+              type: integer
+            completed_tasks:
+              type: integer
+            overdue_tasks:
+              type: integer
+            tasks_due_this_week:
+              type: integer
+            total_journals:
+              type: integer
+            journals_this_month:
+              type: integer
+            total_documents:
+              type: integer
+            documents_this_month:
+              type: integer
+            cui_documents:
+              type: integer
+    """
     try:
         today = date.today()
         first_of_month = today.replace(day=1)
@@ -78,6 +126,29 @@ def summary():
 
 @dashboard_bp.route('/renewals', methods=['GET'])
 def renewals():
+    """Get assets grouped by expiration category.
+    ---
+    tags:
+      - Dashboard
+    security: []
+    responses:
+      200:
+        description: Assets grouped by expiration category
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              category:
+                type: string
+                enum: [Expired, 7 Days, 30 Days, 60 Days, 90 Days, 90+ Days]
+              count:
+                type: integer
+              assets:
+                type: array
+                items:
+                  $ref: '#/definitions/Asset'
+    """
     try:
         assets = Asset.query.filter(
             Asset.end_date.isnot(None),
@@ -107,6 +178,32 @@ def renewals():
 
 @dashboard_bp.route('/budget', methods=['GET'])
 def budget():
+    """Get budget breakdown by department.
+    ---
+    tags:
+      - Dashboard
+    security: []
+    responses:
+      200:
+        description: Per-department budget data
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              department:
+                type: string
+              total_budget:
+                type: number
+              spent:
+                type: number
+              remaining:
+                type: number
+              utilization_pct:
+                type: number
+              asset_count:
+                type: integer
+    """
     try:
         assets = Asset.query.all()
         dept_data = defaultdict(lambda: {
@@ -139,6 +236,35 @@ def budget():
 
 @dashboard_bp.route('/tasks-performance', methods=['GET'])
 def tasks_performance():
+    """Get task performance metrics with month-over-month comparison.
+    ---
+    tags:
+      - Dashboard
+    security: []
+    responses:
+      200:
+        description: Task performance metrics
+        schema:
+          type: object
+          properties:
+            tasks_by_status:
+              type: object
+              description: "Keys: Not Started, In Progress, Blocked, Completed"
+            tasks_by_priority:
+              type: object
+              description: "Keys: Critical, High, Medium, Low"
+            completion_rate:
+              type: number
+            avg_days_to_complete:
+              type: number
+            tasks_completed_this_month:
+              type: integer
+            tasks_completed_last_month:
+              type: integer
+            mom_change:
+              type: number
+              description: Month-over-month change ratio
+    """
     try:
         today = date.today()
         first_of_month = today.replace(day=1)
@@ -202,6 +328,40 @@ def tasks_performance():
 
 @dashboard_bp.route('/consolidation', methods=['GET'])
 def consolidation():
+    """Get vendor consolidation opportunities (vendors with 2+ assets).
+    ---
+    tags:
+      - Dashboard
+    security: []
+    responses:
+      200:
+        description: Consolidation analysis
+        schema:
+          type: object
+          properties:
+            opportunities:
+              type: array
+              items:
+                type: object
+                properties:
+                  vendor:
+                    type: string
+                  asset_count:
+                    type: integer
+                  total_budget:
+                    type: number
+                  assets:
+                    type: array
+                    items:
+                      $ref: '#/definitions/Asset'
+            total_consolidatable_budget:
+              type: number
+            potential_savings:
+              type: number
+              description: Estimated 12% savings on consolidatable budget
+            savings_pct:
+              type: number
+    """
     try:
         assets = Asset.query.filter(Asset.status == 'Active').all()
 
@@ -239,6 +399,36 @@ def consolidation():
 
 @dashboard_bp.route('/department-scorecard', methods=['GET'])
 def department_scorecard():
+    """Get per-department scorecard with assets, tasks, and budget.
+    ---
+    tags:
+      - Dashboard
+    security: []
+    responses:
+      200:
+        description: Department scorecards
+        schema:
+          type: array
+          items:
+            type: object
+            properties:
+              department:
+                type: string
+              active_assets:
+                type: integer
+              open_tasks:
+                type: integer
+              overdue_tasks:
+                type: integer
+              total_budget:
+                type: number
+              spent:
+                type: number
+              remaining:
+                type: number
+              task_completion_rate:
+                type: number
+    """
     try:
         assets = Asset.query.all()
         tasks = Task.query.all()
@@ -296,6 +486,25 @@ def department_scorecard():
 
 @dashboard_bp.route('/renewal-alerts/run', methods=['GET', 'POST'])
 def run_renewal_alerts():
+    """Run renewal alert check. Creates notifications for assets approaching expiration.
+    ---
+    tags:
+      - Dashboard
+    responses:
+      200:
+        description: Alert run results
+        schema:
+          type: object
+          properties:
+            alerts_created:
+              type: integer
+            alerts_generated:
+              type: integer
+            assets_checked:
+              type: integer
+            message:
+              type: string
+    """
     try:
         today = date.today()
         thresholds = [90, 60, 30, 14, 7]

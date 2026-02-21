@@ -8,6 +8,27 @@ notifications_bp = Blueprint('notifications', __name__)
 
 @notifications_bp.route('', methods=['GET'])
 def list_notifications():
+    """List notifications for the current user.
+    ---
+    tags:
+      - Notifications
+    parameters:
+      - name: unread_only
+        in: query
+        type: string
+        required: false
+        description: "Set to 'true' to show only unread notifications"
+        enum: ['true', 'false']
+    responses:
+      200:
+        description: List of notifications
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/Notification'
+      401:
+        description: Unauthorized
+    """
     try:
         user = get_current_user()
         if not user:
@@ -28,6 +49,21 @@ def list_notifications():
 
 @notifications_bp.route('/count', methods=['GET'])
 def unread_count():
+    """Get count of unread notifications for the current user.
+    ---
+    tags:
+      - Notifications
+    responses:
+      200:
+        description: Unread notification count
+        schema:
+          type: object
+          properties:
+            unread_count:
+              type: integer
+      401:
+        description: Unauthorized
+    """
     try:
         user = get_current_user()
         if not user:
@@ -45,6 +81,27 @@ def unread_count():
 
 @notifications_bp.route('/<int:id>/read', methods=['PUT'])
 def mark_read(id):
+    """Mark a single notification as read.
+    ---
+    tags:
+      - Notifications
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Updated notification
+        schema:
+          $ref: '#/definitions/Notification'
+      401:
+        description: Unauthorized
+      403:
+        description: Forbidden — not your notification
+      404:
+        description: Notification not found
+    """
     try:
         user = get_current_user()
         if not user:
@@ -67,6 +124,16 @@ def mark_read(id):
 
 @notifications_bp.route('/read-all', methods=['PUT'])
 def mark_all_read():
+    """Mark all notifications as read for the current user.
+    ---
+    tags:
+      - Notifications
+    responses:
+      200:
+        description: All notifications marked as read
+      401:
+        description: Unauthorized
+    """
     try:
         user = get_current_user()
         if not user:

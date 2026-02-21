@@ -8,6 +8,50 @@ assets_bp = Blueprint('assets', __name__)
 
 @assets_bp.route('', methods=['GET'])
 def list_assets():
+    """List all assets with optional filters.
+    ---
+    tags:
+      - Assets
+    parameters:
+      - name: status
+        in: query
+        type: string
+        required: false
+        enum: [Active, Pending Renewal, Expired, Retired]
+      - name: department
+        in: query
+        type: string
+        required: false
+      - name: asset_type
+        in: query
+        type: string
+        required: false
+        enum: [Hardware, Software, Contract, Project]
+      - name: search
+        in: query
+        type: string
+        required: false
+        description: Search across title, asset_id, vendor, contract_number, description
+      - name: sort
+        in: query
+        type: string
+        required: false
+        default: created_at
+        description: Field to sort by
+      - name: order
+        in: query
+        type: string
+        required: false
+        default: desc
+        enum: [asc, desc]
+    responses:
+      200:
+        description: List of assets
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/Asset'
+    """
     try:
         query = Asset.query
 
@@ -55,6 +99,23 @@ def list_assets():
 
 @assets_bp.route('/<int:id>', methods=['GET'])
 def get_asset(id):
+    """Get a single asset by ID.
+    ---
+    tags:
+      - Assets
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Asset details
+        schema:
+          $ref: '#/definitions/Asset'
+      404:
+        description: Asset not found
+    """
     try:
         asset = Asset.query.get(id)
         if not asset:
@@ -66,6 +127,60 @@ def get_asset(id):
 
 @assets_bp.route('', methods=['POST'])
 def create_asset():
+    """Create a new asset. Auto-generates asset_id and journal entry.
+    ---
+    tags:
+      - Assets
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - title
+            - asset_type
+          properties:
+            title:
+              type: string
+            asset_type:
+              type: string
+              enum: [Hardware, Software, Contract, Project]
+            status:
+              type: string
+              default: Active
+            description:
+              type: string
+            start_date:
+              type: string
+              format: date
+            end_date:
+              type: string
+              format: date
+            total_budget:
+              type: number
+              default: 0
+            spent_to_date:
+              type: number
+              default: 0
+            vendor:
+              type: string
+            contract_number:
+              type: string
+            department:
+              type: string
+            owner_id:
+              type: integer
+            notes:
+              type: string
+    responses:
+      201:
+        description: Asset created
+        schema:
+          $ref: '#/definitions/Asset'
+      400:
+        description: Validation error
+    """
     try:
         data = request.get_json()
         if not data or not data.get('title') or not data.get('asset_type'):
@@ -115,6 +230,59 @@ def create_asset():
 
 @assets_bp.route('/<int:id>', methods=['PUT'])
 def update_asset(id):
+    """Update an existing asset.
+    ---
+    tags:
+      - Assets
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            title:
+              type: string
+            asset_type:
+              type: string
+            status:
+              type: string
+            description:
+              type: string
+            start_date:
+              type: string
+              format: date
+            end_date:
+              type: string
+              format: date
+            total_budget:
+              type: number
+            spent_to_date:
+              type: number
+            vendor:
+              type: string
+            contract_number:
+              type: string
+            department:
+              type: string
+            owner_id:
+              type: integer
+            notes:
+              type: string
+    responses:
+      200:
+        description: Updated asset
+        schema:
+          $ref: '#/definitions/Asset'
+      400:
+        description: No data provided
+      404:
+        description: Asset not found
+    """
     try:
         asset = Asset.query.get(id)
         if not asset:
@@ -147,6 +315,21 @@ def update_asset(id):
 
 @assets_bp.route('/<int:id>', methods=['DELETE'])
 def delete_asset(id):
+    """Delete an asset.
+    ---
+    tags:
+      - Assets
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Asset deleted
+      404:
+        description: Asset not found
+    """
     try:
         asset = Asset.query.get(id)
         if not asset:
@@ -162,6 +345,25 @@ def delete_asset(id):
 
 @assets_bp.route('/<int:id>/tasks', methods=['GET'])
 def get_asset_tasks(id):
+    """Get all tasks linked to an asset.
+    ---
+    tags:
+      - Assets
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: List of tasks for this asset
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/Task'
+      404:
+        description: Asset not found
+    """
     try:
         asset = Asset.query.get(id)
         if not asset:
@@ -174,6 +376,25 @@ def get_asset_tasks(id):
 
 @assets_bp.route('/<int:id>/journals', methods=['GET'])
 def get_asset_journals(id):
+    """Get all journal entries linked to an asset.
+    ---
+    tags:
+      - Assets
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: List of journal entries for this asset
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/Journal'
+      404:
+        description: Asset not found
+    """
     try:
         asset = Asset.query.get(id)
         if not asset:
@@ -186,6 +407,25 @@ def get_asset_journals(id):
 
 @assets_bp.route('/<int:id>/documents', methods=['GET'])
 def get_asset_documents(id):
+    """Get all documents linked to an asset.
+    ---
+    tags:
+      - Assets
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: List of documents for this asset
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/Document'
+      404:
+        description: Asset not found
+    """
     try:
         asset = Asset.query.get(id)
         if not asset:

@@ -9,6 +9,64 @@ tasks_bp = Blueprint('tasks', __name__)
 
 @tasks_bp.route('', methods=['GET'])
 def list_tasks():
+    """List all tasks with optional filters.
+    ---
+    tags:
+      - Tasks
+    parameters:
+      - name: status
+        in: query
+        type: string
+        required: false
+        description: "Filter by status. Use 'not_completed' to exclude completed tasks."
+        enum: [Not Started, In Progress, Blocked, Completed, not_completed]
+      - name: priority
+        in: query
+        type: string
+        required: false
+        enum: [Critical, High, Medium, Low]
+      - name: department
+        in: query
+        type: string
+        required: false
+      - name: assigned_to_id
+        in: query
+        type: integer
+        required: false
+      - name: bucket
+        in: query
+        type: string
+        required: false
+        enum: [Hardware, Software, Contract, Project, General]
+      - name: asset_id
+        in: query
+        type: integer
+        required: false
+        description: Filter by linked asset
+      - name: search
+        in: query
+        type: string
+        required: false
+        description: Search across title, task_id, description
+      - name: sort
+        in: query
+        type: string
+        required: false
+        default: due_date
+      - name: order
+        in: query
+        type: string
+        required: false
+        default: asc
+        enum: [asc, desc]
+    responses:
+      200:
+        description: List of tasks
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/Task'
+    """
     try:
         query = Task.query
 
@@ -69,6 +127,23 @@ def list_tasks():
 
 @tasks_bp.route('/<int:id>', methods=['GET'])
 def get_task(id):
+    """Get a single task by ID.
+    ---
+    tags:
+      - Tasks
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Task details
+        schema:
+          $ref: '#/definitions/Task'
+      404:
+        description: Task not found
+    """
     try:
         task = Task.query.get(id)
         if not task:
@@ -80,6 +155,56 @@ def get_task(id):
 
 @tasks_bp.route('', methods=['POST'])
 def create_task():
+    """Create a new task. Auto-generates task_id, journal entry, and notification.
+    ---
+    tags:
+      - Tasks
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - title
+          properties:
+            title:
+              type: string
+            description:
+              type: string
+            priority:
+              type: string
+              default: Medium
+              enum: [Critical, High, Medium, Low]
+            status:
+              type: string
+              default: Not Started
+            due_date:
+              type: string
+              format: date
+            assigned_to_id:
+              type: integer
+            assigned_by_id:
+              type: integer
+            asset_id:
+              type: integer
+              description: Link to an asset (auto-derives bucket and department)
+            bucket:
+              type: string
+              default: General
+            department:
+              type: string
+            percent_complete:
+              type: integer
+              default: 0
+    responses:
+      201:
+        description: Task created
+        schema:
+          $ref: '#/definitions/Task'
+      400:
+        description: Title is required
+    """
     try:
         data = request.get_json()
         if not data or not data.get('title'):
@@ -151,6 +276,57 @@ def create_task():
 
 @tasks_bp.route('/<int:id>', methods=['PUT'])
 def update_task(id):
+    """Update a task. Setting percent_complete auto-derives status.
+    ---
+    tags:
+      - Tasks
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            title:
+              type: string
+            description:
+              type: string
+            priority:
+              type: string
+            status:
+              type: string
+              description: Setting to Completed auto-sets completed_date and percent_complete=100
+            due_date:
+              type: string
+              format: date
+            completed_date:
+              type: string
+              format: date
+            assigned_to_id:
+              type: integer
+            asset_id:
+              type: integer
+            percent_complete:
+              type: integer
+              description: "0=Not Started, 1-99=In Progress, 100=Completed"
+            department:
+              type: string
+            bucket:
+              type: string
+    responses:
+      200:
+        description: Updated task
+        schema:
+          $ref: '#/definitions/Task'
+      400:
+        description: No data provided
+      404:
+        description: Task not found
+    """
     try:
         task = Task.query.get(id)
         if not task:
@@ -207,6 +383,21 @@ def update_task(id):
 
 @tasks_bp.route('/<int:id>', methods=['DELETE'])
 def delete_task(id):
+    """Delete a task.
+    ---
+    tags:
+      - Tasks
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Task deleted
+      404:
+        description: Task not found
+    """
     try:
         task = Task.query.get(id)
         if not task:

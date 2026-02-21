@@ -19,6 +19,54 @@ LIBRARY_MAP = {
 
 @documents_bp.route('', methods=['GET'])
 def list_documents():
+    """List all documents with optional filters.
+    ---
+    tags:
+      - Documents
+    parameters:
+      - name: document_type
+        in: query
+        type: string
+        required: false
+        enum: [Contract, Invoice, SOW, Proposal, Technical, Other]
+      - name: cui_category
+        in: query
+        type: string
+        required: false
+        enum: [Not CUI, CUI Basic, CUI Specified]
+      - name: department
+        in: query
+        type: string
+        required: false
+      - name: asset_id
+        in: query
+        type: integer
+        required: false
+        description: Filter by linked asset
+      - name: search
+        in: query
+        type: string
+        required: false
+        description: Search across title, document_id, document_type
+      - name: sort
+        in: query
+        type: string
+        required: false
+        default: created_at
+      - name: order
+        in: query
+        type: string
+        required: false
+        default: desc
+        enum: [asc, desc]
+    responses:
+      200:
+        description: List of documents
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/Document'
+    """
     try:
         query = Document.query
 
@@ -68,6 +116,23 @@ def list_documents():
 
 @documents_bp.route('/<int:id>', methods=['GET'])
 def get_document(id):
+    """Get a single document by ID.
+    ---
+    tags:
+      - Documents
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Document details
+        schema:
+          $ref: '#/definitions/Document'
+      404:
+        description: Document not found
+    """
     try:
         doc = Document.query.get(id)
         if not doc:
@@ -79,6 +144,51 @@ def get_document(id):
 
 @documents_bp.route('', methods=['POST'])
 def create_document():
+    """Create a new document. Auto-routes to library and creates journal entry.
+    ---
+    tags:
+      - Documents
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - title
+            - document_type
+          properties:
+            title:
+              type: string
+            document_type:
+              type: string
+              enum: [Contract, Invoice, SOW, Proposal, Technical, Other]
+            cui_category:
+              type: string
+              default: Not CUI
+              enum: [Not CUI, CUI Basic, CUI Specified]
+            date_received:
+              type: string
+              format: date
+            asset_id:
+              type: integer
+            library_name:
+              type: string
+              description: Override auto-routing (defaults based on document_type)
+            department:
+              type: string
+            uploaded_by_id:
+              type: integer
+            file_url:
+              type: string
+    responses:
+      201:
+        description: Document created
+        schema:
+          $ref: '#/definitions/Document'
+      400:
+        description: Title and document_type required
+    """
     try:
         data = request.get_json()
         if not data or not data.get('title') or not data.get('document_type'):
@@ -143,6 +253,21 @@ def create_document():
 
 @documents_bp.route('/<int:id>', methods=['DELETE'])
 def delete_document(id):
+    """Delete a document.
+    ---
+    tags:
+      - Documents
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Document deleted
+      404:
+        description: Document not found
+    """
     try:
         doc = Document.query.get(id)
         if not doc:

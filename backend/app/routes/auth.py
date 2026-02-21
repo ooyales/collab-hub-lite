@@ -19,6 +19,45 @@ def get_current_user():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
+    """Authenticate and get a token.
+    ---
+    tags:
+      - Auth
+    security: []
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              example: admin@collabhub.local
+            password:
+              type: string
+              example: demo123
+    responses:
+      200:
+        description: Login successful
+        schema:
+          type: object
+          properties:
+            user:
+              $ref: '#/definitions/User'
+            token:
+              type: string
+              description: User ID used as Bearer token
+      400:
+        description: Missing credentials
+      401:
+        description: Invalid credentials
+      403:
+        description: Account disabled
+    """
     try:
         data = request.get_json()
         if not data or not data.get('email') or not data.get('password'):
@@ -41,6 +80,18 @@ def login():
 
 @auth_bp.route('/me', methods=['GET'])
 def me():
+    """Get current authenticated user.
+    ---
+    tags:
+      - Auth
+    responses:
+      200:
+        description: Current user profile
+        schema:
+          $ref: '#/definitions/User'
+      401:
+        description: Unauthorized
+    """
     user = get_current_user()
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
@@ -49,6 +100,19 @@ def me():
 
 @auth_bp.route('/users', methods=['GET'])
 def list_users():
+    """List all active users.
+    ---
+    tags:
+      - Auth
+    security: []
+    responses:
+      200:
+        description: List of active users
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/User'
+    """
     try:
         users = User.query.filter_by(is_active=True).all()
         return jsonify([u.to_dict() for u in users])

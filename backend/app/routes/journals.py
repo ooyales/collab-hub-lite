@@ -9,6 +9,49 @@ journals_bp = Blueprint('journals', __name__)
 
 @journals_bp.route('', methods=['GET'])
 def list_journals():
+    """List all journal entries with optional filters.
+    ---
+    tags:
+      - Journals
+    parameters:
+      - name: entry_type
+        in: query
+        type: string
+        required: false
+        enum: [Note, Update, Decision, Issue, Milestone]
+      - name: department
+        in: query
+        type: string
+        required: false
+      - name: asset_id
+        in: query
+        type: integer
+        required: false
+        description: Filter by linked asset
+      - name: search
+        in: query
+        type: string
+        required: false
+        description: Search across title, journal_id, body
+      - name: sort
+        in: query
+        type: string
+        required: false
+        default: entry_date
+      - name: order
+        in: query
+        type: string
+        required: false
+        default: desc
+        enum: [asc, desc]
+    responses:
+      200:
+        description: List of journal entries
+        schema:
+          type: array
+          items:
+            $ref: '#/definitions/Journal'
+    """
     try:
         query = Journal.query
 
@@ -54,6 +97,23 @@ def list_journals():
 
 @journals_bp.route('/<int:id>', methods=['GET'])
 def get_journal(id):
+    """Get a single journal entry by ID.
+    ---
+    tags:
+      - Journals
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Journal entry details
+        schema:
+          $ref: '#/definitions/Journal'
+      404:
+        description: Journal entry not found
+    """
     try:
         journal = Journal.query.get(id)
         if not journal:
@@ -65,6 +125,46 @@ def get_journal(id):
 
 @journals_bp.route('', methods=['POST'])
 def create_journal():
+    """Create a new journal entry. Auto-generates journal_id.
+    ---
+    tags:
+      - Journals
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required:
+            - title
+          properties:
+            title:
+              type: string
+            body:
+              type: string
+            entry_type:
+              type: string
+              default: Note
+              enum: [Note, Update, Decision, Issue, Milestone]
+            entry_date:
+              type: string
+              format: date
+            asset_id:
+              type: integer
+            related_asset_id_str:
+              type: string
+            department:
+              type: string
+            author_id:
+              type: integer
+    responses:
+      201:
+        description: Journal entry created
+        schema:
+          $ref: '#/definitions/Journal'
+      400:
+        description: Title is required
+    """
     try:
         data = request.get_json()
         if not data or not data.get('title'):
@@ -100,6 +200,21 @@ def create_journal():
 
 @journals_bp.route('/<int:id>', methods=['DELETE'])
 def delete_journal(id):
+    """Delete a journal entry.
+    ---
+    tags:
+      - Journals
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Journal entry deleted
+      404:
+        description: Journal entry not found
+    """
     try:
         journal = Journal.query.get(id)
         if not journal:
