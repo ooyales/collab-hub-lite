@@ -17,7 +17,9 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        'DATABASE_URL', f'sqlite:///{os.path.join(basedir, "instance", "collab_hub.db")}'
+    )
 
 
 class TestingConfig(Config):
