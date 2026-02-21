@@ -1,0 +1,37 @@
+// COLLABORATION HUB - POWER APPS FORMULAS (SharePoint Lists Version)
+// Use these formulas to update the Canvas App for SharePoint Lists data source
+
+// ============ APP ONSTART ============
+Set(varSiteUrl, "https://YOUR-TENANT.sharepoint.com/sites/CollaborationHub");
+Set(varCurrentUser, User());
+Set(varUserEmail, User().Email);
+
+// ============ HOME SCREEN KPIs ============
+// Active Assets
+CountRows(Filter(Assets, Status.Value = "Active"))
+
+// Open Tasks  
+CountRows(Filter(Tasks, Status.Value <> "Completed"))
+
+// My Tasks Due This Week
+CountRows(Filter(Tasks, AssignedTo.Email = varUserEmail && Status.Value <> "Completed" && DueDate >= Today() && DueDate <= DateAdd(Today(), 7, Days)))
+
+// ============ TASK LIST ============
+Sort(Filter(Tasks, AssignedTo.Email = varUserEmail && (IsBlank(ddStatusFilter.Selected.Value) || Status.Value = ddStatusFilter.Selected.Value)), DueDate, Ascending)
+
+// Priority Color
+Switch(ThisItem.Priority.Value, "Critical", RGBA(209,52,56,1), "High", RGBA(255,185,0,1), "Medium", RGBA(0,120,212,1), "Low", RGBA(16,124,16,1), RGBA(96,94,92,1))
+
+// ============ CREATE TASK (calls flow) ============
+Set(varFlowResult, CollabHub_CreatePlannerTask_SP.Run(txtTaskTitle.Text, txtTaskDescription.Text, ddTaskAsset.Selected.AssetID, ddTaskAsset.Selected.Title, ddTaskAsset.Selected.AssetType.Value, ddTaskAsset.Selected.ID, ddTaskPriority.Selected.Value, Text(dpTaskDueDate.SelectedDate, "yyyy-MM-dd"), ddTaskAssignee.Selected.Mail, varUserEmail, varUserDepartment));
+
+// ============ CHOICE COLUMNS ============
+// Get value: ThisItem.Status.Value
+// Set value: {Status: {Value: "Completed"}}
+
+// ============ PERSON COLUMNS ============
+// Filter: Filter(Tasks, AssignedTo.Email = User().Email)
+// Set: {AssignedTo: {Claims: "i:0#.f|membership|" & email}}
+
+// ============ LOOKUP COLUMNS ============
+// Set: {RelatedAsset: {Id: selectedAsset.ID, Value: selectedAsset.Title}}

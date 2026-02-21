@@ -1,0 +1,360 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "name": "CollabHub_RenewalAlerts_SP",
+    "description": "Daily renewal alert checks for assets approaching expiration (SharePoint Lists version)",
+    "category": "Notifications",
+    "trigger": "Recurrence (Daily 8 AM)",
+    "version": "3.0 - SharePoint Lists"
+  },
+  "parameters": {
+    "$connections": {
+      "defaultValue": {},
+      "type": "Object"
+    },
+    "SharePointSiteUrl": {
+      "defaultValue": "https://YOUR-TENANT.sharepoint.com/sites/CollaborationHub",
+      "type": "String"
+    },
+    "NotificationEmail": {
+      "defaultValue": "collabhub-admin@yourdomain.com",
+      "type": "String"
+    },
+    "PlanID": {
+      "defaultValue": "YOUR-PLAN-ID-HERE",
+      "type": "String"
+    },
+    "ContractBucketId": {
+      "defaultValue": "YOUR-CONTRACT-BUCKET-ID",
+      "type": "String"
+    }
+  },
+  "triggers": {
+    "Daily_8AM": {
+      "type": "Recurrence",
+      "recurrence": {
+        "frequency": "Day",
+        "interval": 1,
+        "schedule": {
+          "hours": ["8"],
+          "minutes": [0]
+        },
+        "timeZone": "Eastern Standard Time"
+      }
+    }
+  },
+  "actions": {
+    "Initialize_AlertsSent": {
+      "type": "InitializeVariable",
+      "runAfter": {},
+      "inputs": {
+        "variables": [{
+          "name": "AlertsSent",
+          "type": "integer",
+          "value": 0
+        }]
+      }
+    },
+    "Get_Active_Assets": {
+      "type": "ApiConnection",
+      "runAfter": {
+        "Initialize_AlertsSent": ["Succeeded"]
+      },
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+          }
+        },
+        "method": "get",
+        "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('SharePointSiteUrl')))}/tables/@{encodeURIComponent(encodeURIComponent('Assets'))}/items",
+        "queries": {
+          "$filter": "Status eq 'Active'"
+        }
+      }
+    },
+    "For_Each_Asset": {
+      "type": "Foreach",
+      "runAfter": {
+        "Get_Active_Assets": ["Succeeded"]
+      },
+      "foreach": "@body('Get_Active_Assets')?['value']",
+      "actions": {
+        "Calculate_Days_Until_Expiration": {
+          "type": "Compose",
+          "runAfter": {},
+          "inputs": "@div(sub(ticks(items('For_Each_Asset')?['EndDate']), ticks(utcNow())), 864000000000)"
+        },
+        "Check_90_Days": {
+          "type": "If",
+          "runAfter": {
+            "Calculate_Days_Until_Expiration": ["Succeeded"]
+          },
+          "expression": {
+            "and": [
+              {"equals": ["@outputs('Calculate_Days_Until_Expiration')", 90]}
+            ]
+          },
+          "actions": {
+            "Send_90_Day_Alert": {
+              "type": "ApiConnection",
+              "runAfter": {},
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['office365']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/v2/Mail",
+                "body": {
+                  "To": "@if(empty(items('For_Each_Asset')?['Owner']?['Email']), parameters('NotificationEmail'), items('For_Each_Asset')?['Owner']?['Email'])",
+                  "Subject": "📅 90-Day Renewal Notice: @{items('For_Each_Asset')?['Title']}",
+                  "Body": "<h2>Asset Renewal Reminder</h2><p>The following asset will expire in <strong>90 days</strong>:</p><table border='1' cellpadding='8'><tr><td><strong>Asset ID</strong></td><td>@{items('For_Each_Asset')?['AssetID']}</td></tr><tr><td><strong>Name</strong></td><td>@{items('For_Each_Asset')?['Title']}</td></tr><tr><td><strong>Type</strong></td><td>@{items('For_Each_Asset')?['AssetType']?['Value']}</td></tr><tr><td><strong>Vendor</strong></td><td>@{items('For_Each_Asset')?['Vendor']}</td></tr><tr><td><strong>End Date</strong></td><td>@{formatDateTime(items('For_Each_Asset')?['EndDate'], 'MMMM d, yyyy')}</td></tr></table><p>Please begin planning for renewal.</p>",
+                  "Importance": "Normal"
+                }
+              }
+            },
+            "Increment_Alerts_90": {
+              "type": "IncrementVariable",
+              "runAfter": {
+                "Send_90_Day_Alert": ["Succeeded"]
+              },
+              "inputs": {
+                "name": "AlertsSent",
+                "value": 1
+              }
+            }
+          }
+        },
+        "Check_60_Days": {
+          "type": "If",
+          "runAfter": {
+            "Check_90_Days": ["Succeeded"]
+          },
+          "expression": {
+            "and": [
+              {"equals": ["@outputs('Calculate_Days_Until_Expiration')", 60]}
+            ]
+          },
+          "actions": {
+            "Send_60_Day_Alert": {
+              "type": "ApiConnection",
+              "runAfter": {},
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['office365']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/v2/Mail",
+                "body": {
+                  "To": "@if(empty(items('For_Each_Asset')?['Owner']?['Email']), parameters('NotificationEmail'), items('For_Each_Asset')?['Owner']?['Email'])",
+                  "Subject": "⚠️ 60-Day Renewal Notice: @{items('For_Each_Asset')?['Title']}",
+                  "Body": "<h2>Asset Renewal Reminder - 60 Days</h2><p>The following asset will expire in <strong>60 days</strong>:</p><table border='1' cellpadding='8'><tr><td><strong>Asset ID</strong></td><td>@{items('For_Each_Asset')?['AssetID']}</td></tr><tr><td><strong>Name</strong></td><td>@{items('For_Each_Asset')?['Title']}</td></tr><tr><td><strong>Type</strong></td><td>@{items('For_Each_Asset')?['AssetType']?['Value']}</td></tr><tr><td><strong>Vendor</strong></td><td>@{items('For_Each_Asset')?['Vendor']}</td></tr><tr><td><strong>End Date</strong></td><td>@{formatDateTime(items('For_Each_Asset')?['EndDate'], 'MMMM d, yyyy')}</td></tr></table><p>Please ensure renewal actions are underway.</p>",
+                  "Importance": "Normal"
+                }
+              }
+            }
+          }
+        },
+        "Check_30_Days": {
+          "type": "If",
+          "runAfter": {
+            "Check_60_Days": ["Succeeded"]
+          },
+          "expression": {
+            "and": [
+              {"equals": ["@outputs('Calculate_Days_Until_Expiration')", 30]}
+            ]
+          },
+          "actions": {
+            "Send_30_Day_Alert": {
+              "type": "ApiConnection",
+              "runAfter": {},
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['office365']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/v2/Mail",
+                "body": {
+                  "To": "@if(empty(items('For_Each_Asset')?['Owner']?['Email']), parameters('NotificationEmail'), items('For_Each_Asset')?['Owner']?['Email'])",
+                  "Subject": "🔴 30-Day Renewal Notice: @{items('For_Each_Asset')?['Title']}",
+                  "Body": "<h2>URGENT: Asset Renewal Required - 30 Days</h2><p>The following asset will expire in <strong>30 days</strong>:</p><table border='1' cellpadding='8'><tr><td><strong>Asset ID</strong></td><td>@{items('For_Each_Asset')?['AssetID']}</td></tr><tr><td><strong>Name</strong></td><td>@{items('For_Each_Asset')?['Title']}</td></tr><tr><td><strong>Type</strong></td><td>@{items('For_Each_Asset')?['AssetType']?['Value']}</td></tr><tr><td><strong>Vendor</strong></td><td>@{items('For_Each_Asset')?['Vendor']}</td></tr><tr><td><strong>End Date</strong></td><td>@{formatDateTime(items('For_Each_Asset')?['EndDate'], 'MMMM d, yyyy')}</td></tr></table><p><strong>Immediate action required.</strong> A renewal task has been created in Planner.</p>",
+                  "Importance": "High"
+                }
+              }
+            },
+            "Update_Asset_Status_Pending": {
+              "type": "ApiConnection",
+              "runAfter": {
+                "Send_30_Day_Alert": ["Succeeded"]
+              },
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                  }
+                },
+                "method": "patch",
+                "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('SharePointSiteUrl')))}/tables/@{encodeURIComponent(encodeURIComponent('Assets'))}/items/@{items('For_Each_Asset')?['ID']}",
+                "body": {
+                  "Status": "Pending Renewal"
+                }
+              }
+            },
+            "Create_Renewal_Planner_Task": {
+              "type": "ApiConnection",
+              "runAfter": {
+                "Update_Asset_Status_Pending": ["Succeeded"]
+              },
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['planner']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/v1.0/planner/tasks",
+                "body": {
+                  "planId": "@parameters('PlanID')",
+                  "bucketId": "@parameters('ContractBucketId')",
+                  "title": "[@{items('For_Each_Asset')?['AssetID']}] Renewal Required - @{items('For_Each_Asset')?['Title']}",
+                  "dueDateTime": "@items('For_Each_Asset')?['EndDate']"
+                }
+              }
+            },
+            "Generate_Task_ID_for_Renewal": {
+              "type": "Workflow",
+              "runAfter": {
+                "Create_Renewal_Planner_Task": ["Succeeded"]
+              },
+              "inputs": {
+                "host": {
+                  "workflow": {
+                    "id": "FLOW-ID-FOR-GENERATE-ID"
+                  }
+                },
+                "body": {
+                  "ListType": "Tasks"
+                }
+              }
+            },
+            "Create_SharePoint_Task_for_Renewal": {
+              "type": "ApiConnection",
+              "runAfter": {
+                "Generate_Task_ID_for_Renewal": ["Succeeded"]
+              },
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('SharePointSiteUrl')))}/tables/@{encodeURIComponent(encodeURIComponent('Tasks'))}/items",
+                "body": {
+                  "TaskID": "@body('Generate_Task_ID_for_Renewal')?['generatedid']",
+                  "Title": "Renewal Required - @{items('For_Each_Asset')?['Title']}",
+                  "Description": "Asset @{items('For_Each_Asset')?['AssetID']} expires on @{formatDateTime(items('For_Each_Asset')?['EndDate'], 'MMMM d, yyyy')}. Please initiate renewal process.",
+                  "Priority": "High",
+                  "Status": "Not Started",
+                  "DueDate": "@items('For_Each_Asset')?['EndDate']",
+                  "RelatedAssetId": "@items('For_Each_Asset')?['ID']",
+                  "RelatedAssetID": "@items('For_Each_Asset')?['AssetID']",
+                  "PlannerTaskId": "@body('Create_Renewal_Planner_Task')?['id']",
+                  "PlannerPlanId": "@parameters('PlanID')",
+                  "PercentComplete": 0,
+                  "Department": "@items('For_Each_Asset')?['Department']?['Value']"
+                }
+              }
+            }
+          }
+        },
+        "Check_14_Days": {
+          "type": "If",
+          "runAfter": {
+            "Check_30_Days": ["Succeeded"]
+          },
+          "expression": {
+            "and": [
+              {"equals": ["@outputs('Calculate_Days_Until_Expiration')", 14]}
+            ]
+          },
+          "actions": {
+            "Send_14_Day_Teams_DM": {
+              "type": "ApiConnection",
+              "runAfter": {},
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['teams']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/v1.0/users/@{items('For_Each_Asset')?['Owner']?['Email']}/messages",
+                "body": {
+                  "content": "🚨 **URGENT RENEWAL REMINDER**\n\nAsset **@{items('For_Each_Asset')?['Title']}** (@{items('For_Each_Asset')?['AssetID']}) expires in **14 days** on @{formatDateTime(items('For_Each_Asset')?['EndDate'], 'MMMM d, yyyy')}.\n\nPlease take immediate action to complete the renewal process."
+                }
+              }
+            }
+          }
+        },
+        "Check_7_Days": {
+          "type": "If",
+          "runAfter": {
+            "Check_14_Days": ["Succeeded"]
+          },
+          "expression": {
+            "and": [
+              {"equals": ["@outputs('Calculate_Days_Until_Expiration')", 7]}
+            ]
+          },
+          "actions": {
+            "Send_7_Day_Escalation": {
+              "type": "ApiConnection",
+              "runAfter": {},
+              "inputs": {
+                "host": {
+                  "connection": {
+                    "name": "@parameters('$connections')['office365']['connectionId']"
+                  }
+                },
+                "method": "post",
+                "path": "/v2/Mail",
+                "body": {
+                  "To": "@{if(empty(items('For_Each_Asset')?['Owner']?['Email']), parameters('NotificationEmail'), items('For_Each_Asset')?['Owner']?['Email'])};@{parameters('NotificationEmail')}",
+                  "Subject": "🚨 CRITICAL: 7 Days Until Expiration - @{items('For_Each_Asset')?['Title']}",
+                  "Body": "<h2 style='color: #D13438;'>CRITICAL: Immediate Action Required</h2><p>The following asset will expire in <strong>7 days</strong>:</p><table border='1' cellpadding='8' style='border-color: #D13438;'><tr><td><strong>Asset ID</strong></td><td>@{items('For_Each_Asset')?['AssetID']}</td></tr><tr><td><strong>Name</strong></td><td>@{items('For_Each_Asset')?['Title']}</td></tr><tr><td><strong>Type</strong></td><td>@{items('For_Each_Asset')?['AssetType']?['Value']}</td></tr><tr><td><strong>Vendor</strong></td><td>@{items('For_Each_Asset')?['Vendor']}</td></tr><tr><td><strong>End Date</strong></td><td style='color: #D13438; font-weight: bold;'>@{formatDateTime(items('For_Each_Asset')?['EndDate'], 'MMMM d, yyyy')}</td></tr></table><p style='color: #D13438;'><strong>This is the final escalation notice. Please complete renewal immediately to avoid service interruption.</strong></p>",
+                  "Importance": "High"
+                }
+              }
+            }
+          }
+        }
+      },
+      "runtimeConfiguration": {
+        "concurrency": {
+          "repetitions": 10
+        }
+      }
+    },
+    "Summary_Log": {
+      "type": "Compose",
+      "runAfter": {
+        "For_Each_Asset": ["Succeeded"]
+      },
+      "inputs": {
+        "Timestamp": "@utcNow()",
+        "AlertsSent": "@variables('AlertsSent')",
+        "AssetsChecked": "@length(body('Get_Active_Assets')?['value'])"
+      }
+    }
+  },
+  "outputs": {}
+}

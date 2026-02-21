@@ -1,0 +1,449 @@
+// =============================================================================
+// COLLABORATION HUB - DAX MEASURES
+// SharePoint Lists Version
+// =============================================================================
+// 
+// These measures work with SharePoint Lists data source.
+// Column names may differ slightly from Dataverse version.
+// Create a _Measures table in Power BI to hold these measures.
+//
+// =============================================================================
+
+
+// =============================================================================
+// ASSET MEASURES
+// =============================================================================
+
+// Total Assets
+Total Assets = COUNTROWS(Assets)
+
+// Active Assets
+Active Assets = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[Status] = "Active"
+)
+
+// Assets by Status
+Assets Pending Renewal = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[Status] = "Pending Renewal"
+)
+
+Assets Expired = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[Status] = "Expired"
+)
+
+// Late Renewals (past expiration but still active)
+Late Renewals = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[IsExpired] = TRUE(),
+    Assets[Status] = "Active"
+)
+
+Late Renewals Color = 
+VAR LateCount = [Late Renewals]
+RETURN
+SWITCH(
+    TRUE(),
+    LateCount = 0, "#107C10",    // Green
+    LateCount <= 2, "#FFB900",   // Yellow
+    "#D13438"                     // Red
+)
+
+// Renewals Due (by timeframe)
+Renewals Due 7 Days = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[DaysUntilExpiration] <= 7,
+    Assets[DaysUntilExpiration] > 0,
+    Assets[Status] = "Active"
+)
+
+Renewals Due 30 Days = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[DaysUntilExpiration] <= 30,
+    Assets[DaysUntilExpiration] > 0,
+    Assets[Status] = "Active"
+)
+
+Renewals Due 60 Days = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[DaysUntilExpiration] <= 60,
+    Assets[DaysUntilExpiration] > 0,
+    Assets[Status] = "Active"
+)
+
+Renewals Due 90 Days = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[DaysUntilExpiration] <= 90,
+    Assets[DaysUntilExpiration] > 0,
+    Assets[Status] = "Active"
+)
+
+
+// =============================================================================
+// BUDGET MEASURES
+// =============================================================================
+
+// Total Budget
+Total Budget = SUM(Assets[TotalBudget])
+
+// Total Spent
+Total Spent = SUM(Assets[SpentToDate])
+
+// Remaining Budget
+Total Remaining Budget = [Total Budget] - [Total Spent]
+
+// Budget Utilization Percentage
+Budget Utilization Pct = 
+DIVIDE([Total Spent], [Total Budget], 0)
+
+Budget Utilization Color = 
+VAR UtilPct = [Budget Utilization Pct]
+RETURN
+SWITCH(
+    TRUE(),
+    UtilPct <= 0.75, "#107C10",   // Green
+    UtilPct <= 0.90, "#FFB900",   // Yellow
+    "#D13438"                      // Red
+)
+
+// Average Daily Spend (last 90 days)
+Avg Daily Spend = 
+VAR TotalSpent = [Total Spent]
+VAR DaysInPeriod = 90
+RETURN
+DIVIDE(TotalSpent, DaysInPeriod, 0)
+
+// Days to Fund Exhaustion
+Days to Fund Exhaustion = 
+VAR Remaining = [Total Remaining Budget]
+VAR DailySpend = [Avg Daily Spend]
+RETURN
+IF(DailySpend <= 0, 999, DIVIDE(Remaining, DailySpend, 999))
+
+Days to Exhaustion Status = 
+VAR Days = [Days to Fund Exhaustion]
+RETURN
+SWITCH(
+    TRUE(),
+    Days >= 90, "Good",
+    Days >= 30, "Warning",
+    "Critical"
+)
+
+Days to Exhaustion Color = 
+VAR Days = [Days to Fund Exhaustion]
+RETURN
+SWITCH(
+    TRUE(),
+    Days >= 90, "#107C10",   // Green
+    Days >= 30, "#FFB900",   // Yellow
+    "#D13438"                 // Red
+)
+
+
+// =============================================================================
+// TASK MEASURES
+// =============================================================================
+
+// Total Tasks
+Total Tasks = COUNTROWS(Tasks)
+
+// Open Tasks
+Open Tasks = 
+CALCULATE(
+    COUNTROWS(Tasks),
+    Tasks[Status] <> "Completed"
+)
+
+// Completed Tasks
+Completed Tasks = 
+CALCULATE(
+    COUNTROWS(Tasks),
+    Tasks[Status] = "Completed"
+)
+
+// Overdue Tasks
+Overdue Tasks = 
+CALCULATE(
+    COUNTROWS(Tasks),
+    Tasks[IsOverdue] = TRUE()
+)
+
+Overdue Tasks Color = 
+VAR OverdueCount = [Overdue Tasks]
+RETURN
+SWITCH(
+    TRUE(),
+    OverdueCount = 0, "#107C10",   // Green
+    OverdueCount <= 5, "#FFB900",  // Yellow
+    "#D13438"                       // Red
+)
+
+// Tasks by Status
+Tasks Not Started = 
+CALCULATE(COUNTROWS(Tasks), Tasks[Status] = "Not Started")
+
+Tasks In Progress = 
+CALCULATE(COUNTROWS(Tasks), Tasks[Status] = "In Progress")
+
+Tasks Blocked = 
+CALCULATE(COUNTROWS(Tasks), Tasks[Status] = "Blocked")
+
+// Tasks by Priority
+Tasks Critical = 
+CALCULATE(COUNTROWS(Tasks), Tasks[Priority] = "Critical")
+
+Tasks High = 
+CALCULATE(COUNTROWS(Tasks), Tasks[Priority] = "High")
+
+Tasks Medium = 
+CALCULATE(COUNTROWS(Tasks), Tasks[Priority] = "Medium")
+
+Tasks Low = 
+CALCULATE(COUNTROWS(Tasks), Tasks[Priority] = "Low")
+
+// Task Completion Rate
+Task Completion Rate = 
+VAR TotalCompleted = CALCULATE(COUNTROWS(Tasks), Tasks[Status] = "Completed")
+VAR CompletedOnTime = CALCULATE(COUNTROWS(Tasks), Tasks[CompletedOnTime] = TRUE())
+RETURN
+DIVIDE(CompletedOnTime, TotalCompleted, 0)
+
+Task Completion Rate Status = 
+VAR Rate = [Task Completion Rate]
+RETURN
+SWITCH(
+    TRUE(),
+    Rate >= 0.90, "Good",
+    Rate >= 0.70, "Warning",
+    "Critical"
+)
+
+Task Completion Rate Color = 
+VAR Rate = [Task Completion Rate]
+RETURN
+SWITCH(
+    TRUE(),
+    Rate >= 0.90, "#107C10",   // Green
+    Rate >= 0.70, "#FFB900",   // Yellow
+    "#D13438"                   // Red
+)
+
+// Average Days to Complete
+Avg Days to Complete = 
+AVERAGEX(
+    FILTER(Tasks, Tasks[Status] = "Completed" && NOT(ISBLANK(Tasks[CompletedDate]))),
+    DATEDIFF(Tasks[Created], Tasks[CompletedDate], DAY)
+)
+
+// Tasks Due This Week
+Tasks Due This Week = 
+VAR Today = TODAY()
+VAR WeekEnd = Today + 7
+RETURN
+CALCULATE(
+    COUNTROWS(Tasks),
+    Tasks[DueDate] >= Today,
+    Tasks[DueDate] <= WeekEnd,
+    Tasks[Status] <> "Completed"
+)
+
+
+// =============================================================================
+// CONSOLIDATION OPPORTUNITY MEASURES
+// =============================================================================
+
+// Vendors with Multiple Assets
+Vendors with Multiple Assets = 
+CALCULATE(
+    DISTINCTCOUNT(Assets[Vendor]),
+    FILTER(
+        VALUES(Assets[Vendor]),
+        CALCULATE(COUNTROWS(Assets)) > 1
+    )
+)
+
+// Consolidation Opportunities
+// Vendors with 2+ assets expiring within 90 days of each other
+Consolidation Opportunities = 
+VAR VendorTable = 
+    ADDCOLUMNS(
+        VALUES(Assets[Vendor]),
+        "AssetCount", CALCULATE(
+            COUNTROWS(Assets),
+            Assets[DaysUntilExpiration] <= 90,
+            Assets[DaysUntilExpiration] > 0,
+            Assets[Status] = "Active"
+        )
+    )
+RETURN
+SUMX(
+    FILTER(VendorTable, [AssetCount] >= 2),
+    1
+)
+
+// Potential Savings (estimated 12% on consolidated contracts)
+Potential Consolidation Savings = 
+VAR ConsolidationBudget = 
+    CALCULATE(
+        SUM(Assets[TotalBudget]),
+        FILTER(
+            Assets,
+            Assets[DaysUntilExpiration] <= 90 &&
+            Assets[DaysUntilExpiration] > 0 &&
+            Assets[Status] = "Active" &&
+            CALCULATE(
+                COUNTROWS(Assets),
+                ALLEXCEPT(Assets, Assets[Vendor]),
+                Assets[DaysUntilExpiration] <= 90,
+                Assets[DaysUntilExpiration] > 0
+            ) >= 2
+        )
+    )
+RETURN
+ConsolidationBudget * 0.12
+
+
+// =============================================================================
+// JOURNAL / ACTIVITY MEASURES
+// =============================================================================
+
+// Total Journal Entries
+Total Journal Entries = COUNTROWS(Journals)
+
+// Entries This Week
+Journal Entries This Week = 
+VAR WeekStart = TODAY() - WEEKDAY(TODAY(), 2) + 1
+RETURN
+CALCULATE(
+    COUNTROWS(Journals),
+    Journals[EntryDate] >= WeekStart
+)
+
+// Entries This Month
+Journal Entries This Month = 
+CALCULATE(
+    COUNTROWS(Journals),
+    MONTH(Journals[EntryDate]) = MONTH(TODAY()),
+    YEAR(Journals[EntryDate]) = YEAR(TODAY())
+)
+
+
+// =============================================================================
+// DOCUMENT MEASURES
+// =============================================================================
+
+// Total Documents
+Total Documents = COUNTROWS('Document Registry')
+
+// Documents This Month
+Documents This Month = 
+CALCULATE(
+    COUNTROWS('Document Registry'),
+    MONTH('Document Registry'[Created]) = MONTH(TODAY()),
+    YEAR('Document Registry'[Created]) = YEAR(TODAY())
+)
+
+// Documents by Type
+Documents Contracts = 
+CALCULATE(COUNTROWS('Document Registry'), 'Document Registry'[DocumentType] = "Contract")
+
+Documents Invoices = 
+CALCULATE(COUNTROWS('Document Registry'), 'Document Registry'[DocumentType] = "Invoice")
+
+// CUI Documents
+CUI Documents = 
+CALCULATE(
+    COUNTROWS('Document Registry'),
+    'Document Registry'[CUICategory] <> "Not CUI"
+)
+
+
+// =============================================================================
+// TIME INTELLIGENCE MEASURES
+// =============================================================================
+
+// Tasks Completed This Month
+Tasks Completed This Month = 
+CALCULATE(
+    COUNTROWS(Tasks),
+    Tasks[Status] = "Completed",
+    MONTH(Tasks[CompletedDate]) = MONTH(TODAY()),
+    YEAR(Tasks[CompletedDate]) = YEAR(TODAY())
+)
+
+// Tasks Completed Last Month
+Tasks Completed Last Month = 
+VAR LastMonthStart = EOMONTH(TODAY(), -2) + 1
+VAR LastMonthEnd = EOMONTH(TODAY(), -1)
+RETURN
+CALCULATE(
+    COUNTROWS(Tasks),
+    Tasks[Status] = "Completed",
+    Tasks[CompletedDate] >= LastMonthStart,
+    Tasks[CompletedDate] <= LastMonthEnd
+)
+
+// Month over Month Change
+Tasks MoM Change = 
+VAR ThisMonth = [Tasks Completed This Month]
+VAR LastMonth = [Tasks Completed Last Month]
+RETURN
+IF(LastMonth = 0, BLANK(), DIVIDE(ThisMonth - LastMonth, LastMonth, 0))
+
+// YTD Budget Spent
+YTD Budget Spent = 
+CALCULATE(
+    SUM(Assets[SpentToDate]),
+    DATESYTD(DateTable[Date])
+)
+
+
+// =============================================================================
+// DEPARTMENT MEASURES (for Department Scorecard page)
+// =============================================================================
+
+// Department Assets
+Dept Active Assets = 
+CALCULATE(
+    COUNTROWS(Assets),
+    Assets[Status] = "Active"
+)
+
+// Department Open Tasks
+Dept Open Tasks = 
+CALCULATE(
+    COUNTROWS(Tasks),
+    Tasks[Status] <> "Completed"
+)
+
+// Department Overdue Tasks
+Dept Overdue Tasks = 
+CALCULATE(
+    COUNTROWS(Tasks),
+    Tasks[IsOverdue] = TRUE()
+)
+
+// Department Budget
+Dept Total Budget = SUM(Assets[TotalBudget])
+
+Dept Budget Spent = SUM(Assets[SpentToDate])
+
+Dept Budget Remaining = [Dept Total Budget] - [Dept Budget Spent]
+
+// Department Task Completion Rate
+Dept Task Completion Rate = 
+VAR TotalCompleted = CALCULATE(COUNTROWS(Tasks), Tasks[Status] = "Completed")
+VAR CompletedOnTime = CALCULATE(COUNTROWS(Tasks), Tasks[CompletedOnTime] = TRUE())
+RETURN
+DIVIDE(CompletedOnTime, TotalCompleted, 0)

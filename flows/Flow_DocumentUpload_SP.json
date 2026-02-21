@@ -1,0 +1,221 @@
+{
+  "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "name": "CollabHub_DocumentUpload_SP",
+    "description": "Handles document uploads from Power Apps - routes to appropriate library and creates registry entry (SharePoint Lists version)",
+    "category": "Document Management",
+    "trigger": "PowerApps",
+    "version": "3.0 - SharePoint Lists"
+  },
+  "parameters": {
+    "$connections": {
+      "defaultValue": {},
+      "type": "Object"
+    },
+    "SharePointSiteUrl": {
+      "defaultValue": "https://YOUR-TENANT.sharepoint.com/sites/CollaborationHub",
+      "type": "String"
+    }
+  },
+  "triggers": {
+    "PowerApps_(V2)": {
+      "type": "PowerApps",
+      "kind": "PowerAppV2",
+      "inputs": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "Filename": { "title": "Filename", "type": "string" },
+            "FileContent": { "title": "File Content", "type": "string", "format": "byte" },
+            "DocumentType": { "title": "Document Type", "type": "string" },
+            "CUICategory": { "title": "CUI Category", "type": "string" },
+            "AssetLookupId": { "title": "Asset Lookup ID", "type": "integer" },
+            "AssetID": { "title": "Asset ID", "type": "string" },
+            "LibraryName": { "title": "Library Name", "type": "string" },
+            "DateReceived": { "title": "Date Received", "type": "string" },
+            "Department": { "title": "Department", "type": "string" },
+            "DocumentID": { "title": "Document ID", "type": "string" }
+          },
+          "required": ["Filename", "FileContent", "DocumentType", "CUICategory", "LibraryName", "DocumentID"]
+        }
+      }
+    }
+  },
+  "actions": {
+    "Initialize_Variables": {
+      "type": "InitializeVariable",
+      "runAfter": {},
+      "inputs": {
+        "variables": [{
+          "name": "SharePointFileUrl",
+          "type": "string",
+          "value": ""
+        }]
+      }
+    },
+    "Initialize_FileId": {
+      "type": "InitializeVariable",
+      "runAfter": {
+        "Initialize_Variables": ["Succeeded"]
+      },
+      "inputs": {
+        "variables": [{
+          "name": "SharePointFileId",
+          "type": "integer",
+          "value": 0
+        }]
+      }
+    },
+    "Create_Timestamped_Filename": {
+      "type": "Compose",
+      "runAfter": {
+        "Initialize_FileId": ["Succeeded"]
+      },
+      "inputs": "@concat(first(split(triggerBody()['Filename'], '.')), '_', formatDateTime(utcNow(), 'yyyyMMdd_HHmmss'), '.', last(split(triggerBody()['Filename'], '.')))"
+    },
+    "Upload_File_To_Library": {
+      "type": "ApiConnection",
+      "runAfter": {
+        "Create_Timestamped_Filename": ["Succeeded"]
+      },
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+          }
+        },
+        "method": "post",
+        "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('SharePointSiteUrl')))}/tables/@{encodeURIComponent(encodeURIComponent(triggerBody()['LibraryName']))}/files",
+        "body": "@base64ToBinary(triggerBody()['FileContent'])",
+        "headers": {
+          "ReadFileMetadataFromServer": true
+        },
+        "queries": {
+          "folderPath": "/",
+          "name": "@outputs('Create_Timestamped_Filename')"
+        }
+      }
+    },
+    "Set_File_URL": {
+      "type": "SetVariable",
+      "runAfter": {
+        "Upload_File_To_Library": ["Succeeded"]
+      },
+      "inputs": {
+        "name": "SharePointFileUrl",
+        "value": "@body('Upload_File_To_Library')?['{Link}']"
+      }
+    },
+    "Set_File_ID": {
+      "type": "SetVariable",
+      "runAfter": {
+        "Set_File_URL": ["Succeeded"]
+      },
+      "inputs": {
+        "name": "SharePointFileId",
+        "value": "@body('Upload_File_To_Library')?['{Id}']"
+      }
+    },
+    "Update_File_Metadata": {
+      "type": "ApiConnection",
+      "runAfter": {
+        "Set_File_ID": ["Succeeded"]
+      },
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+          }
+        },
+        "method": "patch",
+        "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('SharePointSiteUrl')))}/tables/@{encodeURIComponent(encodeURIComponent(triggerBody()['LibraryName']))}/items/@{variables('SharePointFileId')}",
+        "body": {
+          "DocumentType": "@triggerBody()['DocumentType']",
+          "CUICategory": "@triggerBody()['CUICategory']",
+          "RelatedAsset": "@triggerBody()['AssetID']"
+        }
+      },
+      "description": "Set metadata columns on the uploaded file in the document library"
+    },
+    "Create_Document_Registry_Entry": {
+      "type": "ApiConnection",
+      "runAfter": {
+        "Update_File_Metadata": ["Succeeded"]
+      },
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+          }
+        },
+        "method": "post",
+        "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('SharePointSiteUrl')))}/tables/@{encodeURIComponent(encodeURIComponent('Document Registry'))}/items",
+        "body": {
+          "DocumentID": "@triggerBody()['DocumentID']",
+          "Title": "@triggerBody()['Filename']",
+          "DocumentType": "@triggerBody()['DocumentType']",
+          "CUICategory": "@triggerBody()['CUICategory']",
+          "DateReceived": "@triggerBody()['DateReceived']",
+          "RelatedAssetId": "@triggerBody()['AssetLookupId']",
+          "RelatedAssetID": "@triggerBody()['AssetID']",
+          "SharePointUrl": "@variables('SharePointFileUrl')",
+          "SharePointItemId": "@variables('SharePointFileId')",
+          "LibraryName": "@triggerBody()['LibraryName']",
+          "Department": "@triggerBody()['Department']"
+        }
+      }
+    },
+    "Create_Journal_Entry_for_Upload": {
+      "type": "ApiConnection",
+      "runAfter": {
+        "Create_Document_Registry_Entry": ["Succeeded"]
+      },
+      "inputs": {
+        "host": {
+          "connection": {
+            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+          }
+        },
+        "method": "post",
+        "path": "/datasets/@{encodeURIComponent(encodeURIComponent(parameters('SharePointSiteUrl')))}/tables/@{encodeURIComponent(encodeURIComponent('Journals'))}/items",
+        "body": {
+          "JournalID": "@concat('JRN-AUTO-', formatDateTime(utcNow(), 'yyyyMMddHHmmss'))",
+          "Title": "Document uploaded: @{triggerBody()['Filename']}",
+          "Body": "A new @{triggerBody()['DocumentType']} document was uploaded and linked to asset @{triggerBody()['AssetID']}. CUI Category: @{triggerBody()['CUICategory']}.",
+          "EntryDate": "@utcNow()",
+          "RelatedAssetId": "@triggerBody()['AssetLookupId']",
+          "RelatedAssetID": "@triggerBody()['AssetID']",
+          "Department": "@triggerBody()['Department']",
+          "EntryType": "Update"
+        }
+      }
+    },
+    "Response_to_PowerApps": {
+      "type": "Response",
+      "runAfter": {
+        "Create_Journal_Entry_for_Upload": ["Succeeded"]
+      },
+      "kind": "PowerApp",
+      "inputs": {
+        "statusCode": 200,
+        "body": {
+          "success": true,
+          "documentid": "@triggerBody()['DocumentID']",
+          "sharepointurl": "@variables('SharePointFileUrl')",
+          "registryitemid": "@body('Create_Document_Registry_Entry')?['ID']"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "success": { "title": "Success", "type": "boolean" },
+            "documentid": { "title": "DocumentID", "type": "string" },
+            "sharepointurl": { "title": "SharePointUrl", "type": "string" },
+            "registryitemid": { "title": "RegistryItemID", "type": "integer" }
+          }
+        }
+      }
+    }
+  },
+  "outputs": {}
+}

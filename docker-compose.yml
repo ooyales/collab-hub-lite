@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "5009:5000"
+    environment:
+      - FLASK_CONFIG=development
+      - SECRET_KEY=collab-hub-dev-key
+    volumes:
+      - backend-data:/app/instance
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "6008:5173"
+    depends_on:
+      - backend
+
+volumes:
+  backend-data:

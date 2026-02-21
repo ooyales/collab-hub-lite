@@ -1,0 +1,34 @@
+{
+  "name": "CollabHub_CreatePlannerTask_SP",
+  "description": "Creates task in Planner AND SharePoint Tasks list",
+  "trigger": "PowerApps",
+  "parameters": {
+    "TaskTitle": "string",
+    "TaskDescription": "string", 
+    "AssetID": "string",
+    "AssetName": "string",
+    "AssetType": "string",
+    "AssetLookupId": "integer",
+    "Priority": "string",
+    "DueDate": "date",
+    "AssigneeEmail": "string",
+    "AssignedByEmail": "string",
+    "Department": "string"
+  },
+  "actions": [
+    "1. Call GenerateID flow for Tasks",
+    "2. Determine Planner bucket from AssetType",
+    "3. Map Priority to Planner category",
+    "4. Format title: [AssetID] TaskTitle",
+    "5. Get Assignee user ID from email",
+    "6. Create Planner task with assignments",
+    "7. Update Planner task details and categories",
+    "8. Create SharePoint Tasks list item with PlannerTaskId"
+  ],
+  "output": {
+    "success": true,
+    "taskid": "TSK-00001",
+    "plannertaskid": "guid",
+    "sharepointitemid": 1
+  }
+}

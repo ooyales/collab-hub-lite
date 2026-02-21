@@ -1,0 +1,18 @@
+{
+  "name": "CollabHub_GenerateID",
+  "description": "Generates auto-incrementing IDs (AST-00001, TSK-00001, etc.)",
+  "trigger": "PowerApps",
+  "parameters": {
+    "ListType": "Assets | Tasks | Journals | Documents"
+  },
+  "actions": [
+    "1. Get item from ID Counters list where Title = ListType",
+    "2. Calculate NextValue = CurrentValue + 1",
+    "3. Format ID: Prefix + '-' + padLeft(NextValue, 5, '0')",
+    "4. Update ID Counters list with new CurrentValue",
+    "5. Return GeneratedID to PowerApps"
+  ],
+  "output": {
+    "generatedid": "AST-00001 (example)"
+  }
+}

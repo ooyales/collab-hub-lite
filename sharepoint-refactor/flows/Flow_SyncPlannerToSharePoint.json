@@ -1,0 +1,19 @@
+{
+  "name": "CollabHub_SyncPlannerToSharePoint",
+  "description": "Two-way sync between Planner and SharePoint Tasks (runs every 15 min)",
+  "trigger": "Recurrence (every 15 minutes)",
+  "actions": {
+    "Planner_to_SharePoint": [
+      "1. Get all Planner tasks from Plan",
+      "2. For each task, find matching SharePoint item by PlannerTaskId",
+      "3. Map percentComplete: 0=Not Started, 1-99=In Progress, 100=Completed",
+      "4. Update SharePoint if status/percent changed"
+    ],
+    "SharePoint_to_Planner": [
+      "1. Get recently modified SharePoint tasks (last 20 min)",
+      "2. For each task with PlannerTaskId, get Planner task",
+      "3. Map Status to percentComplete",
+      "4. Update Planner if different"
+    ]
+  }
+}
